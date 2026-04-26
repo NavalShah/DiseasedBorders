@@ -72,15 +72,51 @@ public class GraphLoader {
 		}
 	}
 
+	public static void loadGDP(CountryGraph graph, String filename) {
+		Map<String, Country> lookup = new HashMap<>();
+		for (Country c : graph.getCountrySet()) {
+			lookup.put(c.getName().toLowerCase(), c);
+		}
+
+		try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
+			br.readLine(); // skip header
+			String line;
+			while ((line = br.readLine()) != null) {
+				try {
+					// Use regex that respects quotes for commas
+					String[] parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+					if (parts.length < 3)
+						continue;
+
+					String name = parts[0].trim().replaceAll("^\"|\"$", "");
+					String gdpStr = parts[parts.length - 1].trim();
+					if (gdpStr.isEmpty())
+						continue;
+
+					double gdp = Double.parseDouble(gdpStr);
+
+					if (lookup.containsKey(name.toLowerCase())) {
+						lookup.get(name.toLowerCase()).setGdp(gdp);
+					}
+				} catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+					// Skip malformed lines
+				}
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
 	public static void main(String[] args) {
 		CountryGraph graph = GraphLoader.loadGraph("CountryBorders.CSV");
 		loadPopulation(graph, "CountryPopulation_Fixed.csv");
+		loadGDP(graph, "GDP_Cleaned_Latest.csv");
 
 		System.out.println("Countries: " + graph.getCountrySet().size());
 
 		for (Country c : graph.getCountrySet()) {
 
-			System.out.print(c.getName() + "-" + c.getPopulation());
+			System.out.println(c.getName() + " - Pop: " + c.getPopulation() + " - GDP: " + c.getGdp() + " - Per Capita: " + c.getGdpPerCapita());
 			/*
 			 * if (c.getName().equals("Germany")) {
 			 * System.out.println("Neighbors of Germany: " + graph.getNeighbors(c));

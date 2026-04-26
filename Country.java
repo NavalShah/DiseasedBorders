@@ -2,6 +2,7 @@ public class Country {
     private String code;
     private String name;
     private long population;
+    private double gdp;
 
     public Country(String code, String name) {
         this.code = code;
@@ -13,6 +14,14 @@ public class Country {
 
     public long getPopulation() { return population; }
     public void setPopulation(long population) { this.population = population; }
+
+    public double getGdp() { return gdp; }
+    public void setGdp(double gdp) { this.gdp = gdp; }
+
+    public double getGdpPerCapita() {
+        if (population == 0) return 0;
+        return gdp / population;
+    }
 
     @Override
     public boolean equals(Object o) {

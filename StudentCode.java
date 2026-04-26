@@ -10,6 +10,7 @@ public class StudentCode extends Server {
 
 		graph = GraphLoader.loadGraph("CountryBorders.CSV");
 		GraphLoader.loadPopulation(graph, "CountryPopulation_Fixed.csv");
+		GraphLoader.loadGDP(graph, "GDP_Cleaned_Latest.csv");
 
 		for (Country c : graph.getCountrySet()) {
 			countryMap.put(c.getName().toLowerCase(), c);
