@@ -3,10 +3,29 @@ public class Country {
     private String name;
     private long population;
     private double gdp;
+    private double infectionLevel = 0.0;
+    private long deaths = 0;
 
     public Country(String code, String name) {
         this.code = code;
         this.name = name.trim();
+    }
+
+    public long getDeaths() { return deaths; }
+    public void setDeaths(long deaths) { this.deaths = deaths; }
+    public void addDeaths(long amount) { this.deaths += amount; }
+
+    public double getInfectionLevel() { return infectionLevel; }
+    public void setInfectionLevel(double level) {
+        this.infectionLevel = Math.max(0.0, Math.min(1.0, level));
+    }
+
+    public void infect(double amount) {
+        setInfectionLevel(this.infectionLevel + amount);
+    }
+
+    public boolean isInfected() {
+        return infectionLevel > 0;
     }
 
     public String getCode() { return code; }

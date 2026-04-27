@@ -1,9 +1,15 @@
 import java.util.*;
+import java.util.concurrent.*;
 
 public class StudentCode extends Server {
 
 	private CountryGraph graph = new CountryGraph();
 	private Map<String, Country> countryMap = new HashMap<>();
+	private boolean simulationStarted = false;
+	private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+	private long totalGlobalInfected = 0;
+	private long totalGlobalDeaths = 0;
+	private int infectedCountryCount = 0;
 
 	public StudentCode() {
 		super();
@@ -15,88 +21,124 @@ public class StudentCode extends Server {
 		for (Country c : graph.getCountrySet()) {
 			countryMap.put(c.getName().toLowerCase(), c);
 		}
+
+		// Start simulation tick
+		scheduler.scheduleAtFixedRate(this::simulationTick, 1, 1, TimeUnit.SECONDS);
 	}
 
-	public static void main(String[] args) {
+	private void simulationTick() {
+		if (!simulationStarted) return;
 
-		Server server = new StudentCode(); // Initialize server on default port (8000).
-		server.run(); // Start the server.
-		server.openURL(); // Open url in browser.
+		List<Country> countries = new ArrayList<>(graph.getCountrySet());
+		Map<Country, Double> infectionIncreases = new HashMap<>();
+		Map<Country, Long> deathIncreases = new HashMap<>();
+
+		long currentInfected = 0;
+		long currentDeaths = 0;
+		int currentInfectedCount = 0;
+
+		for (Country c : countries) {
+			if (c.getInfectionLevel() > 0) {
+				currentInfectedCount++;
+				// In-country spread
+				double populationFactor = Math.log10(c.getPopulation() + 1) / 10.0;
+				double gdpFactor = Math.log10(c.getGdp() / (c.getPopulation() + 1) + 1) / 5.0;
+
+				double growth = 0.05 * populationFactor * (1.0 - gdpFactor);
+				growth = Math.max(0.005, growth); 
+
+				double newLevel = Math.min(1.0, c.getInfectionLevel() + growth);
+				infectionIncreases.put(c, newLevel);
+
+				// Death calculation
+				double mortalityRate = 0.002 * c.getInfectionLevel(); 
+				long newDeaths = (long) (c.getPopulation() * c.getInfectionLevel() * mortalityRate);
+				deathIncreases.put(c, c.getDeaths() + newDeaths);
+
+				// Cross-border spread (Land)
+				if (c.getInfectionLevel() > 0.1) {
+					Set<Country> neighbors = graph.getNeighbors(c);
+					for (Country neighbor : neighbors) {
+						if (neighbor.getInfectionLevel() == 0) {
+							double infectChance = 0.1 * c.getInfectionLevel();
+							if (Math.random() < infectChance) {
+								infectionIncreases.put(neighbor, 0.01);
+								sendMessageToUser("Virus spread to " + neighbor.getName() + " via land border!");
+							}
+						}
+					}
+				}
+
+				// Air/Sea Spread (Global)
+				if (c.getInfectionLevel() > 0.3) {
+					double airTravelChance = 0.02 * (c.getGdpPerCapita() / 50000.0 + 0.1);
+					if (Math.random() < airTravelChance) {
+						Country target = countries.get((int) (Math.random() * countries.size()));
+						if (target.getInfectionLevel() == 0) {
+							infectionIncreases.put(target, 0.01);
+							sendMessageToUser("Virus reached " + target.getName() + " via international flight!");
+						}
+					}
+				}
+			}
+
+			currentInfected += (long) (c.getPopulation() * c.getInfectionLevel());
+			currentDeaths += c.getDeaths();
+		}
+
+		// Apply changes
+		for (Map.Entry<Country, Double> entry : infectionIncreases.entrySet()) {
+			entry.getKey().setInfectionLevel(entry.getValue());
+		}
+		for (Map.Entry<Country, Long> entry : deathIncreases.entrySet()) {
+			entry.getKey().setDeaths(entry.getValue());
+		}
+
+		this.totalGlobalInfected = currentInfected;
+		this.totalGlobalDeaths = currentDeaths;
+		this.infectedCountryCount = currentInfectedCount;
 	}
 
 	@Override
-	public void getInputCountries(String country1, String country2) {
-
-		clearCountryColors(); // reset map
-
-		Country start = countryMap.get(country1.toLowerCase());
-		Country end = countryMap.get(country2.toLowerCase());
-
-		if (start == null || end == null) {
-			sendMessageToUser("Invalid country selection.");
-			return;
-		}
-
-		List<Country> path = graph.findPath(start, end);
-
-		if (path.isEmpty()) {
-			sendMessageToUser("No path found.");
-			return;
-		}
-
-		// color full path
-		for (Country c : path) {
-			addCountryColor(c.getName(), "#00ccff"); // light blue
-		}
-
-		// highlight endpoints
-		addCountryColor(country1, "#00ff00"); // green
-		addCountryColor(country2, "#ff0000"); // red
-
-		sendMessageToUser("Path length: " + (path.size() - 1));
-	}
-
-	@Override
-	public void getColorPath() {
-
-	}
-
-	@Override
-	public void handleClick(String country) {
-		clearCountryColors();
-
-		Country clicked = countryMap.get(country.toLowerCase());
-
-		if (clicked == null)
-			return;
-
-		// Use a copy of the neighbors set to avoid modifying the graph's internal
-		// adjList
-		Set<Country> neighbors = new HashSet<>(graph.getNeighbors(clicked));
-
-		// Include the clicked country too
-		neighbors.add(clicked);
-
-		// Find highest population among clicked country and its neighbors
-		Country maxPop = null;
-		for (Country c : neighbors) {
-			if (maxPop == null || c.getPopulation() > maxPop.getPopulation()) {
-				maxPop = c;
+	public Map<String, String> getStatus() {
+		Map<String, String> status = new HashMap<>();
+		for (Country c : graph.getCountrySet()) {
+			if (c.getInfectionLevel() > 0) {
+				status.put(c.getName(), getInfectionColor(c.getInfectionLevel()));
 			}
 		}
 
-		// Color all neighbors and clicked country light gray first
-		for (Country c : neighbors) {
-			addCountryColor(c.getName(), "#cccccc"); // light gray
-		}
+		status.put("stats_infected", String.format("%,d", totalGlobalInfected));
+		status.put("stats_deaths", String.format("%,d", totalGlobalDeaths));
+		status.put("stats_countries", String.valueOf(infectedCountryCount));
 
-		// Highlight the winner with orange
-		if (maxPop != null) {
-			addCountryColor(maxPop.getName(), "#ff9900"); // orange highlight
-			sendMessageToUser("Highest population: " + maxPop.getName() + " (" + maxPop.getPopulation() + ")");
-		}
+		return status;
+	}
 
-		// Highlight clicked country with yellow (overwrites orange if it was the max)
-		addCountryColor(clicked.getName(), "#ffff00"); // yellow
+	private String getInfectionColor(double level) {
+		int green = (int) (255 * (1.0 - level));
+		return String.format("#ff%02x00", green);
+	}
+
+	public static void main(String[] args) {
+		Server server = new StudentCode();
+		server.run();
+		server.openURL();
+	}
+
+	@Override
+	public void getInputCountries(String country1, String country2) {}
+
+	@Override
+	public void getColorPath() {}
+
+	@Override
+	public void handleClick(String country) {
+		Country clicked = countryMap.get(country.toLowerCase());
+		if (clicked != null && !simulationStarted) {
+			clicked.setInfectionLevel(0.01);
+			simulationStarted = true;
+			sendMessageToUser("Outbreak started in " + clicked.getName() + "!");
+		}
 	}
 }

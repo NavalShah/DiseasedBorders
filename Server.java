@@ -38,6 +38,7 @@ public abstract class Server {
             server.createContext("/country-clicked", new CountryClickedHandler()); // POST route that is received when user clicks a country.
             server.createContext("/api", new APIHandler()); // POST route that is received when user clicks a country.
             server.createContext("/get-messages", new MessageHandler());
+            server.createContext("/get-status", new StatusHandler());
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to start HTTP server on port " + port, e);
@@ -59,6 +60,28 @@ public abstract class Server {
     public abstract void getColorPath();
 
     public abstract void handleClick(String country);
+
+    public abstract Map<String, String> getStatus();
+
+    public class StatusHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                return;
+            }
+
+            Map<String, String> statusMap = getStatus();
+            String jsonResponse = mapToJSON(statusMap);
+
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        }
+    }
 
     public void clearCountryColors(){
         countryColors.clear();
