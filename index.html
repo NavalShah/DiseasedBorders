@@ -264,24 +264,33 @@
                 if (hashmap.stats_dna) document.getElementById("dna-points").textContent = hashmap.stats_dna;
 
                 // Update Upgrades UI
-                const upgradeTypes = ['lethality', 'land', 'international'];
+                const upgradeTypes = ['infectivity', 'lethality', 'land', 'international', 'resistance'];
                 upgradeTypes.forEach(type => {
                     const lvl = hashmap['lvl_' + type];
                     const cost = parseInt(hashmap['cost_' + type] || "-1");
                     const btn = document.getElementById('btn-' + type);
-                    const costDisplay = document.getElementById('cost-' + type);
-                    const label = type === 'lethality' ? 'LETHALITY' : (type === 'land' ? 'LAND SPREAD' : 'AIR/SEA TRAVEL');
+                    
+                    let label = "";
+                    switch(type) {
+                        case 'infectivity': label = "INFECTIVITY"; break;
+                        case 'lethality': label = "LETHALITY"; break;
+                        case 'land': label = "LAND SPREAD"; break;
+                        case 'international': label = "AIR/SEA TRAVEL"; break;
+                        case 'resistance': label = "DRUG RESISTANCE"; break;
+                    }
 
-                    if (lvl !== undefined) {
+                    if (lvl !== undefined && btn) {
                         btn.innerHTML = `↑ ${label} (Lvl ${lvl})<div id="cost-${type}" style="font-size: 10px; font-weight: normal;">${cost === -1 ? 'MAXED' : 'Cost: ' + cost + ' DNA'}</div>`;
                         
                         // Disable if maxed or can't afford
                         if (cost === -1) {
                             btn.disabled = true;
                             btn.style.backgroundColor = '#555';
+                            btn.style.opacity = '1.0';
                         } else if (dna < cost) {
-                            btn.disabled = false; // Still clickable to show error or just grey out
-                            btn.style.opacity = '0.6';
+                            btn.disabled = false;
+                            btn.style.opacity = '0.5';
+                            btn.style.backgroundColor = '#884444';
                         } else {
                             btn.disabled = false;
                             btn.style.opacity = '1.0';
@@ -436,6 +445,13 @@
     <div style="font-size: 14px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #555; padding-bottom: 5px;">VIRUS UPGRADES</div>
     
     <div class="upgrade-container">
+        <button id="btn-infectivity" class="upgrade-btn" onclick="sendUpgrade('infectivity')">
+            ↑ INFECTIVITY (Lvl 0)
+            <div id="cost-infectivity" style="font-size: 10px; font-weight: normal;">Cost: 10 DNA</div>
+        </button>
+    </div>
+
+    <div class="upgrade-container">
         <button id="btn-lethality" class="upgrade-btn" onclick="sendUpgrade('lethality')">
             ↑ LETHALITY (Lvl 0)
             <div id="cost-lethality" style="font-size: 10px; font-weight: normal;">Cost: 10 DNA</div>
@@ -453,6 +469,13 @@
         <button id="btn-international" class="upgrade-btn" onclick="sendUpgrade('international')">
             ↑ AIR/SEA TRAVEL (Lvl 0)
             <div id="cost-international" style="font-size: 10px; font-weight: normal;">Cost: 10 DNA</div>
+        </button>
+    </div>
+
+    <div class="upgrade-container">
+        <button id="btn-resistance" class="upgrade-btn" onclick="sendUpgrade('resistance')">
+            ↑ DRUG RESISTANCE (Lvl 0)
+            <div id="cost-resistance" style="font-size: 10px; font-weight: normal;">Cost: 10 DNA</div>
         </button>
     </div>
 </div>
