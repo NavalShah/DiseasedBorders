@@ -10,6 +10,15 @@ public class StudentCode extends Server {
 	private long totalGlobalInfected = 0;
 	private long totalGlobalDeaths = 0;
 	private int infectedCountryCount = 0;
+	private int dayCount = 0;
+
+	private int lethalityLevel = 0;
+	private int landTransportLevel = 0;
+	private int internationalTransportLevel = 0;
+	private int maxLevel = 5;
+
+	private long dnaPoints = 0;
+	private long totalPointsEarned = 0;
 
 	public StudentCode() {
 		super();
@@ -28,6 +37,8 @@ public class StudentCode extends Server {
 
 	private void simulationTick() {
 		if (!simulationStarted) return;
+
+		dayCount++;
 
 		List<Country> countries = new ArrayList<>(graph.getCountrySet());
 		Map<Country, Double> infectionIncreases = new HashMap<>();
@@ -51,7 +62,9 @@ public class StudentCode extends Server {
 				infectionIncreases.put(c, newLevel);
 
 				// Death calculation
-				double mortalityRate = 0.002 * c.getInfectionLevel(); 
+				double baseMortality = 0.002;
+				double lethalityModifier = 1.0 + (lethalityLevel * 0.5); // +50% per level
+				double mortalityRate = baseMortality * c.getInfectionLevel() * lethalityModifier; 
 				long newDeaths = (long) (c.getPopulation() * c.getInfectionLevel() * mortalityRate);
 				deathIncreases.put(c, c.getDeaths() + newDeaths);
 
@@ -60,7 +73,9 @@ public class StudentCode extends Server {
 					Set<Country> neighbors = graph.getNeighbors(c);
 					for (Country neighbor : neighbors) {
 						if (neighbor.getInfectionLevel() == 0) {
-							double infectChance = 0.1 * c.getInfectionLevel();
+							double baseInfectChance = 0.1;
+							double landModifier = 1.0 + (landTransportLevel * 1.0); // +100% per level
+							double infectChance = baseInfectChance * c.getInfectionLevel() * landModifier;
 							if (Math.random() < infectChance) {
 								infectionIncreases.put(neighbor, 0.01);
 								sendMessageToUser("Virus spread to " + neighbor.getName() + " via land border!");
@@ -71,7 +86,9 @@ public class StudentCode extends Server {
 
 				// Air/Sea Spread (Global)
 				if (c.getInfectionLevel() > 0.3) {
-					double airTravelChance = 0.02 * (c.getGdpPerCapita() / 50000.0 + 0.1);
+					double baseAirChance = 0.02;
+					double airModifier = 1.0 + (internationalTransportLevel * 2.0); // +200% per level
+					double airTravelChance = baseAirChance * (c.getGdpPerCapita() / 50000.0 + 0.1) * airModifier;
 					if (Math.random() < airTravelChance) {
 						Country target = countries.get((int) (Math.random() * countries.size()));
 						if (target.getInfectionLevel() == 0) {
@@ -97,6 +114,16 @@ public class StudentCode extends Server {
 		this.totalGlobalInfected = currentInfected;
 		this.totalGlobalDeaths = currentDeaths;
 		this.infectedCountryCount = currentInfectedCount;
+
+		// Update DNA Points based on cumulative totals
+		long pointsFromInfected = totalGlobalInfected / 100000;
+		long pointsFromDeaths = totalGlobalDeaths / 20000;
+		long newTotalPoints = pointsFromInfected + pointsFromDeaths;
+		
+		if (newTotalPoints > totalPointsEarned) {
+			dnaPoints += (newTotalPoints - totalPointsEarned);
+			totalPointsEarned = newTotalPoints;
+		}
 	}
 
 	@Override
@@ -111,8 +138,23 @@ public class StudentCode extends Server {
 		status.put("stats_infected", String.format("%,d", totalGlobalInfected));
 		status.put("stats_deaths", String.format("%,d", totalGlobalDeaths));
 		status.put("stats_countries", String.valueOf(infectedCountryCount));
+		status.put("stats_days", String.valueOf(dayCount));
+		status.put("stats_dna", String.valueOf(dnaPoints));
+		
+		status.put("lvl_lethality", String.valueOf(lethalityLevel));
+		status.put("lvl_land", String.valueOf(landTransportLevel));
+		status.put("lvl_international", String.valueOf(internationalTransportLevel));
+		
+		status.put("cost_lethality", String.valueOf(getUpgradeCost(lethalityLevel)));
+		status.put("cost_land", String.valueOf(getUpgradeCost(landTransportLevel)));
+		status.put("cost_international", String.valueOf(getUpgradeCost(internationalTransportLevel)));
 
 		return status;
+	}
+
+	private int getUpgradeCost(int currentLevel) {
+		if (currentLevel >= maxLevel) return -1;
+		return (currentLevel + 1) * 10;
 	}
 
 	private String getInfectionColor(double level) {
@@ -139,6 +181,59 @@ public class StudentCode extends Server {
 			clicked.setInfectionLevel(0.01);
 			simulationStarted = true;
 			sendMessageToUser("Outbreak started in " + clicked.getName() + "!");
+		}
+	}
+
+	@Override
+	public void handleUpgrade(String type) {
+		System.out.println("DEBUG: handleUpgrade called with: [" + type + "]");
+		int cost;
+		switch (type.toLowerCase()) {
+			case "lethality":
+				if (lethalityLevel >= maxLevel) {
+					sendMessageToUser("Lethality is already at max level!");
+					return;
+				}
+				cost = getUpgradeCost(lethalityLevel);
+				if (dnaPoints >= cost) {
+					dnaPoints -= cost;
+					lethalityLevel++;
+					sendMessageToUser("Virus Lethality Upgraded to Level " + lethalityLevel);
+				} else {
+					sendMessageToUser("Not enough DNA points! Need " + cost);
+				}
+				break;
+			case "land":
+				if (landTransportLevel >= maxLevel) {
+					sendMessageToUser("Land Transport is already at max level!");
+					return;
+				}
+				cost = getUpgradeCost(landTransportLevel);
+				if (dnaPoints >= cost) {
+					dnaPoints -= cost;
+					landTransportLevel++;
+					sendMessageToUser("Land Transport Upgraded to Level " + landTransportLevel);
+				} else {
+					sendMessageToUser("Not enough DNA points! Need " + cost);
+				}
+				break;
+			case "international":
+				if (internationalTransportLevel >= maxLevel) {
+					sendMessageToUser("International Transport is already at max level!");
+					return;
+				}
+				cost = getUpgradeCost(internationalTransportLevel);
+				if (dnaPoints >= cost) {
+					dnaPoints -= cost;
+					internationalTransportLevel++;
+					sendMessageToUser("International Transport Upgraded to Level " + internationalTransportLevel);
+				} else {
+					sendMessageToUser("Not enough DNA points! Need " + cost);
+				}
+				break;
+			default:
+				System.out.println("DEBUG: Unrecognized upgrade type: " + type);
+				break;
 		}
 	}
 }

@@ -1,3 +1,4 @@
+
 // Version 0.4
 // Added methods clearCountryColors (to clear color map) and
 // printCountryColors to print current map (to call for debug purposes)
@@ -7,7 +8,9 @@ import com.sun.net.httpserver.HttpServer;
 
 import java.awt.Desktop;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -19,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 public abstract class Server {
     private HttpServer server;
     private int port; // Port on which the server will listen
-    private Map<String,String> countryColors;
+    private Map<String, String> countryColors;
 
     private final List<String> messageQueue = Collections.synchronizedList(new ArrayList<>());
 
@@ -33,18 +36,20 @@ public abstract class Server {
         try {
             server = HttpServer.create(new InetSocketAddress(port), 0);
             // Define the routes
-            server.createContext("/", new DefaultRoute());         // Serves index.html
+            server.createContext("/", new DefaultRoute()); // Serves index.html
             server.createContext("/static", new StaticFileHandler()); // Serves static files like JS
-            server.createContext("/country-clicked", new CountryClickedHandler()); // POST route that is received when user clicks a country.
+            server.createContext("/country-clicked", new CountryClickedHandler()); // POST route that is received when
+                                                                                   // user clicks a country.
             server.createContext("/api", new APIHandler()); // POST route that is received when user clicks a country.
             server.createContext("/get-messages", new MessageHandler());
             server.createContext("/get-status", new StatusHandler());
+            server.createContext("/upgrade", new UpgradeHandler());
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to start HTTP server on port " + port, e);
         }
-        countryColors = new HashMap<String,String>();
-//        countryColors.put("distance","0");
+        countryColors = new HashMap<String, String>();
+        // countryColors.put("distance","0");
 
     }
 
@@ -54,14 +59,52 @@ public abstract class Server {
 
     public abstract void getInputCountries(String country1, String country2);
 
-    /*  This should return a all countries in the shortest path between country1 and country2
-        (as set to the Subclass) with each path having its colors
-    */
+    /*
+     * This should return a all countries in the shortest path between country1 and
+     * country2
+     * (as set to the Subclass) with each path having its colors
+     */
     public abstract void getColorPath();
 
     public abstract void handleClick(String country);
 
+    public abstract void handleUpgrade(String type);
+
     public abstract Map<String, String> getStatus();
+
+    public class UpgradeHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("LOG: /upgrade context hit! Method: " + exchange.getRequestMethod());
+            try {
+                if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                InputStream is = exchange.getRequestBody();
+                ByteArrayOutputStream result = new ByteArrayOutputStream();
+                byte[] buffer = new byte[1024];
+                int length;
+                while ((length = is.read(buffer)) != -1) {
+                    result.write(buffer, 0, length);
+                }
+                String type = result.toString(StandardCharsets.UTF_8.name()).trim();
+
+                System.out.println("LOG: UpgradeHandler received type: [" + type + "]");
+
+                handleUpgrade(type);
+
+                exchange.sendResponseHeaders(200, -1);
+                exchange.getResponseBody().close();
+            } catch (Exception e) {
+                System.err.println("CRITICAL ERROR in UpgradeHandler:");
+                e.printStackTrace();
+                exchange.sendResponseHeaders(500, -1);
+                exchange.getResponseBody().close();
+            }
+        }
+    }
 
     public class StatusHandler implements HttpHandler {
         @Override
@@ -83,29 +126,30 @@ public abstract class Server {
         }
     }
 
-    public void clearCountryColors(){
+    public void clearCountryColors() {
         countryColors.clear();
     }
 
-    public void printCountryColors(){
+    public void printCountryColors() {
         System.out.println(countryColors);
     }
 
-    public void addCountryColor(String country, String color){
-        countryColors.put(country,color);
+    public void addCountryColor(String country, String color) {
+        countryColors.put(country, color);
     }
-    public void setMessage(String message){
+
+    public void setMessage(String message) {
         countryColors.put("extra", message);
     }
 
-    public boolean removeCountryColor(String country){
+    public boolean removeCountryColor(String country) {
         if (!countryColors.containsKey(country))
             return false;
         countryColors.remove(country);
         return true;
     }
 
-    public boolean isColored(String country){
+    public boolean isColored(String country) {
         return countryColors.containsKey(country);
     }
 
@@ -133,7 +177,6 @@ public abstract class Server {
         }
     }
 
-
     // Main route where the index.html is served
     static class DefaultRoute implements HttpHandler {
         @Override
@@ -148,43 +191,43 @@ public abstract class Server {
     }
 
     // Handler to serve static files like JS and CSS
-static class StaticFileHandler implements HttpHandler {
-    @Override
-    public void handle(HttpExchange exchange) throws IOException {
-        String path = exchange.getRequestURI().getPath();   // e.g. /static/leaflet.js
-        String filePath = path.substring("/static/".length()); // -> leaflet.js
+    static class StaticFileHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            String path = exchange.getRequestURI().getPath(); // e.g. /static/leaflet.js
+            String filePath = path.substring("/static/".length()); // -> leaflet.js
 
-        java.nio.file.Path fullPath = java.nio.file.Paths.get(filePath);
+            java.nio.file.Path fullPath = java.nio.file.Paths.get(filePath);
 
-        if (!java.nio.file.Files.exists(fullPath) || java.nio.file.Files.isDirectory(fullPath)) {
-            String notFound = "404 Not Found";
-            exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=UTF-8");
-            byte[] bytes = notFound.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(404, bytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(bytes);
+            if (!java.nio.file.Files.exists(fullPath) || java.nio.file.Files.isDirectory(fullPath)) {
+                String notFound = "404 Not Found";
+                exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=UTF-8");
+                byte[] bytes = notFound.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(404, bytes.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(bytes);
+                }
+                return;
             }
-            return;
-        }
 
-        byte[] fileContent = java.nio.file.Files.readAllBytes(fullPath);
+            byte[] fileContent = java.nio.file.Files.readAllBytes(fullPath);
 
-        if (path.endsWith(".js")) {
-            exchange.getResponseHeaders().add("Content-Type", "application/javascript; charset=UTF-8");
-        } else if (path.endsWith(".css")) {
-            exchange.getResponseHeaders().add("Content-Type", "text/css; charset=UTF-8");
-        } else if (path.endsWith(".html")) {
-            exchange.getResponseHeaders().add("Content-Type", "text/html; charset=UTF-8");
-        } else {
-            exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-        }
+            if (path.endsWith(".js")) {
+                exchange.getResponseHeaders().add("Content-Type", "application/javascript; charset=UTF-8");
+            } else if (path.endsWith(".css")) {
+                exchange.getResponseHeaders().add("Content-Type", "text/css; charset=UTF-8");
+            } else if (path.endsWith(".html")) {
+                exchange.getResponseHeaders().add("Content-Type", "text/html; charset=UTF-8");
+            } else {
+                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+            }
 
-        exchange.sendResponseHeaders(200, fileContent.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(fileContent);
+            exchange.sendResponseHeaders(200, fileContent.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(fileContent);
+            }
         }
     }
-}
 
     public class CountryClickedHandler implements HttpHandler {
         @Override
@@ -193,7 +236,8 @@ static class StaticFileHandler implements HttpHandler {
             if ("POST".equalsIgnoreCase(exchange.getRequestMethod())) {
                 // Read the request body (country name)
                 String country;
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))) {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))) {
                     country = reader.lines().collect(Collectors.joining("\n"));
                 }
 
@@ -203,7 +247,7 @@ static class StaticFileHandler implements HttpHandler {
                 String jSONClickedMap = mapToJSON(countryColors);
                 System.out.println("ClickedMap: " + countryColors);
 
-                //System.out.println("jSONClickedMap -->"+jSONClickedMap);
+                // System.out.println("jSONClickedMap -->"+jSONClickedMap);
                 // Respond with the same country received (or modify as needed)
                 byte[] responseBytes = jSONClickedMap.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(200, responseBytes.length);
@@ -227,7 +271,8 @@ static class StaticFileHandler implements HttpHandler {
 
                 // Read the request body
                 String input;
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))) {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))) {
                     input = reader.lines().collect(Collectors.joining("\n"));
                 }
 
@@ -237,12 +282,13 @@ static class StaticFileHandler implements HttpHandler {
 
                 System.out.println("country1: " + country1);
                 System.out.println("country2: " + country2);
-                getInputCountries(country1,country2);
+                getInputCountries(country1, country2);
 
-                // This is a KEY example on how you can give a hashmap of countries+color to the frontend to display!
-                //Map<String, String> countryColors = getInputCountries(country1,country2);
-                //countryColors.putAll(getInputCountries(country1,country2));
-                System.out.println("Map to Post ==>"+countryColors);
+                // This is a KEY example on how you can give a hashmap of countries+color to the
+                // frontend to display!
+                // Map<String, String> countryColors = getInputCountries(country1,country2);
+                // countryColors.putAll(getInputCountries(country1,country2));
+                System.out.println("Map to Post ==>" + countryColors);
 
                 // Convert HashMap to JSON string
                 String jsonResponse = mapToJSON(countryColors);

@@ -97,6 +97,34 @@
         box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         pointer-events: none;
     }
+    #upgrade-panel {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        min-width: 200px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .upgrade-btn {
+        background-color: #ff4444;
+        border: none;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+        margin-top: 10px;
+        font-weight: bold;
+        transition: background-color 0.2s;
+    }
+    .upgrade-btn:hover {
+        background-color: #ff6666;
+    }
     .stat-item {
         margin-bottom: 8px;
     }
@@ -111,6 +139,9 @@
         font-size: 18px;
         font-weight: bold;
         color: #ff4444;
+    }
+    #total-days {
+        color: #44ff44;
     }
     #news-ticker {
         position: absolute;
@@ -194,6 +225,24 @@
     };
 
 
+        function sendUpgrade(upgradeType) {
+            console.log("Attempting fetch for:", upgradeType);
+            fetch("/upgrade", {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: upgradeType
+            })
+            .then(response => {
+                console.log("Response for " + upgradeType + ":", response.status, response.statusText);
+                if (response.ok) {
+                    console.log("Upgrade request successful on client side");
+                }
+            })
+            .catch(error => {
+                console.error("CRITICAL error in fetch for " + upgradeType + ":", error);
+            });
+        }
+
         function init() {
             // Helper Functions
             function resetAllCountryStyles() {
@@ -209,6 +258,37 @@
                 if (hashmap.stats_infected) document.getElementById("total-infected").textContent = hashmap.stats_infected;
                 if (hashmap.stats_deaths) document.getElementById("total-deaths").textContent = hashmap.stats_deaths;
                 if (hashmap.stats_countries) document.getElementById("countries-affected").textContent = hashmap.stats_countries;
+                if (hashmap.stats_days) document.getElementById("total-days").textContent = hashmap.stats_days;
+                
+                const dna = parseInt(hashmap.stats_dna || "0");
+                if (hashmap.stats_dna) document.getElementById("dna-points").textContent = hashmap.stats_dna;
+
+                // Update Upgrades UI
+                const upgradeTypes = ['lethality', 'land', 'international'];
+                upgradeTypes.forEach(type => {
+                    const lvl = hashmap['lvl_' + type];
+                    const cost = parseInt(hashmap['cost_' + type] || "-1");
+                    const btn = document.getElementById('btn-' + type);
+                    const costDisplay = document.getElementById('cost-' + type);
+                    const label = type === 'lethality' ? 'LETHALITY' : (type === 'land' ? 'LAND SPREAD' : 'AIR/SEA TRAVEL');
+
+                    if (lvl !== undefined) {
+                        btn.innerHTML = `↑ ${label} (Lvl ${lvl})<div id="cost-${type}" style="font-size: 10px; font-weight: normal;">${cost === -1 ? 'MAXED' : 'Cost: ' + cost + ' DNA'}</div>`;
+                        
+                        // Disable if maxed or can't afford
+                        if (cost === -1) {
+                            btn.disabled = true;
+                            btn.style.backgroundColor = '#555';
+                        } else if (dna < cost) {
+                            btn.disabled = false; // Still clickable to show error or just grey out
+                            btn.style.opacity = '0.6';
+                        } else {
+                            btn.disabled = false;
+                            btn.style.opacity = '1.0';
+                            btn.style.backgroundColor = '#ff4444';
+                        }
+                    }
+                });
 
                 for (var country in hashmap) {
                     if (country.startsWith("stats_")) continue; // Skip metadata
@@ -331,6 +411,14 @@
 
 <div id="stats-panel">
     <div class="stat-item">
+        <span class="stat-label">Day</span>
+        <span id="total-days" class="stat-value">0</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">DNA Points</span>
+        <span id="dna-points" class="stat-value" style="color: #44ffff;">0</span>
+    </div>
+    <div class="stat-item">
         <span class="stat-label">Global Infected</span>
         <span id="total-infected" class="stat-value">0</span>
     </div>
@@ -341,6 +429,31 @@
     <div class="stat-item">
         <span class="stat-label">Countries Affected</span>
         <span id="countries-affected" class="stat-value">0</span>
+    </div>
+</div>
+
+<div id="upgrade-panel">
+    <div style="font-size: 14px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #555; padding-bottom: 5px;">VIRUS UPGRADES</div>
+    
+    <div class="upgrade-container">
+        <button id="btn-lethality" class="upgrade-btn" onclick="sendUpgrade('lethality')">
+            ↑ LETHALITY (Lvl 0)
+            <div id="cost-lethality" style="font-size: 10px; font-weight: normal;">Cost: 10 DNA</div>
+        </button>
+    </div>
+
+    <div class="upgrade-container">
+        <button id="btn-land" class="upgrade-btn" onclick="sendUpgrade('land')">
+            ↑ LAND SPREAD (Lvl 0)
+            <div id="cost-land" style="font-size: 10px; font-weight: normal;">Cost: 10 DNA</div>
+        </button>
+    </div>
+
+    <div class="upgrade-container">
+        <button id="btn-international" class="upgrade-btn" onclick="sendUpgrade('international')">
+            ↑ AIR/SEA TRAVEL (Lvl 0)
+            <div id="cost-international" style="font-size: 10px; font-weight: normal;">Cost: 10 DNA</div>
+        </button>
     </div>
 </div>
 
