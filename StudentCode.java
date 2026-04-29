@@ -21,6 +21,8 @@ public class StudentCode extends Server {
 
 	private long dnaPoints = 0;
 	private long totalPointsEarned = 0;
+	private String gameState = "PLAYING"; // PLAYING, WON, LOST
+	private double globalCureProgress = 0.0;
 
 	public StudentCode() {
 		super();
@@ -38,7 +40,8 @@ public class StudentCode extends Server {
 	}
 
 	private void simulationTick() {
-		if (!simulationStarted) return;
+		if (!simulationStarted || !gameState.equals("PLAYING"))
+			return;
 
 		dayCount++;
 
@@ -49,41 +52,87 @@ public class StudentCode extends Server {
 		long currentInfected = 0;
 		long currentDeaths = 0;
 		int currentInfectedCount = 0;
+		double totalDrugProgress = 0;
+
+		// 1. Check Win/Loss
+		if (infectedCountryCount == countries.size() && totalGlobalInfected > 0) {
+			gameState = "WON";
+			sendMessageToUser("VICTORY: The virus has spread to every corner of the earth!");
+			return;
+		}
+
+		if (dayCount > 10 && totalGlobalInfected == 0) {
+			gameState = "LOST";
+			sendMessageToUser("DEFEAT: The virus has been eradicated. Humanity survives.");
+			return;
+		}
 
 		for (Country c : countries) {
+			// --- Country Defenses & Intelligence ---
+			// Block borders if infection is high
+			if (c.getInfectionLevel() > 0.15 && !c.isLandBorderBlocked()) {
+				c.setLandBorderBlocked(true);
+				sendMessageToUser(c.getName() + " has closed its land borders!");
+			}
+			if (c.getInfectionLevel() > 0.25 && !c.isAirBorderBlocked()) {
+				c.setAirBorderBlocked(true);
+				sendMessageToUser(c.getName() + " has suspended all international flights!");
+			}
+
+			// Drug Research (Starts if infected or global threat is high)
+			boolean globalThreat = (infectedCountryCount > countries.size() * 0.2);
+			if ((c.getInfectionLevel() > 0.05 || globalThreat) && !c.isImmune()) {
+				double wealthFactor = Math.log10(c.getGdpPerCapita() + 1) / 6.0;
+				// Drug Resistance upgrade slows down research
+				double resistanceEffect = Math.max(0.1, 1.0 - (resistanceLevel * 0.05));
+				double researchSpeed = 0.002 * wealthFactor * resistanceEffect; 
+				c.setDrugProgress(c.getDrugProgress() + researchSpeed);
+			}
+			totalDrugProgress += c.getDrugProgress();
+
+			// Apply Cure/Immunity
+			if (c.getDrugProgress() >= 1.0 && !c.isImmune()) {
+				c.setImmune(true);
+				sendMessageToUser(c.getName() + " has developed a cure and is now immune!");
+			}
+
 			if (c.getInfectionLevel() > 0) {
 				currentInfectedCount++;
-				// In-country spread
-				double populationFactor = Math.log10(c.getPopulation() + 1) / 10.0;
 				
-				// Drug Resistance upgrade reduces the impact of GDP/Wealth on stopping the virus
+				long livingPop = Math.max(0, c.getPopulation() - c.getDeaths());
+				
+				// Base growth
+				double populationFactor = Math.log10(c.getPopulation() + 1) / 10.0;
 				double gdpImpact = Math.log10(c.getGdp() / (c.getPopulation() + 1) + 1) / 5.0;
 				double resistanceModifier = Math.max(0.1, 1.0 - (resistanceLevel * 0.08));
 				double gdpFactor = gdpImpact * resistanceModifier;
-
-				// Infectivity upgrade boosts base growth
 				double baseGrowth = 0.05 + (infectivityLevel * 0.02);
 				double growth = baseGrowth * populationFactor * (1.0 - gdpFactor);
-				growth = Math.max(0.005, growth); 
+				
+				// Cure impact: Drug progress actively reduces infection
+				double cureImpact = c.getDrugProgress() * 0.2; 
+				double totalChange = growth - cureImpact;
 
-				double newLevel = Math.min(1.0, c.getInfectionLevel() + growth);
+				double newLevel = Math.max(0.0, Math.min(1.0, c.getInfectionLevel() + totalChange));
+				if (c.isImmune() || livingPop == 0) newLevel = 0;
 				infectionIncreases.put(c, newLevel);
 
-				// Death calculation
-				double baseMortality = 0.002;
-				double lethalityModifier = 1.0 + (lethalityLevel * 0.6); // +60% per level
-				double mortalityRate = baseMortality * c.getInfectionLevel() * lethalityModifier; 
-				long newDeaths = (long) (c.getPopulation() * c.getInfectionLevel() * mortalityRate);
-				deathIncreases.put(c, c.getDeaths() + newDeaths);
+				// Death calculation (based on living infected people)
+				double baseMortality = 0.005; // Slightly increased
+				double lethalityModifier = 1.0 + (lethalityLevel * 0.6);
+				double mortalityRate = baseMortality * c.getInfectionLevel() * lethalityModifier;
+				long newDeaths = (long) (livingPop * c.getInfectionLevel() * mortalityRate);
+				deathIncreases.put(c, Math.min(c.getPopulation(), c.getDeaths() + newDeaths));
 
-				// Cross-border spread (Land)
-				if (c.getInfectionLevel() > 0.1) {
+				// Cross-border spread (Land) - Threshold lowered to 2%
+				if (c.getInfectionLevel() > 0.02 && !c.isLandBorderBlocked()) {
 					Set<Country> neighbors = graph.getNeighbors(c);
 					for (Country neighbor : neighbors) {
-						if (neighbor.getInfectionLevel() == 0) {
-							double baseInfectChance = 0.08;
-							double landModifier = 1.0 + (landTransportLevel * 0.8); 
-							double infectChance = baseInfectChance * c.getInfectionLevel() * landModifier;
+						if (neighbor.getInfectionLevel() == 0 && !neighbor.isImmune() && !neighbor.isLandBorderBlocked()) {
+							double baseInfectChance = 0.25; // Increased from 0.1
+							double landModifier = 1.0 + (landTransportLevel * 1.0); // Increased multiplier
+							// Spread chance is higher even at low infection to help early game
+							double infectChance = baseInfectChance * (c.getInfectionLevel() + 0.05) * landModifier;
 							if (Math.random() < infectChance) {
 								infectionIncreases.put(neighbor, 0.01);
 								sendMessageToUser("Virus spread to " + neighbor.getName() + " via land border!");
@@ -92,14 +141,14 @@ public class StudentCode extends Server {
 					}
 				}
 
-				// Air/Sea Spread (Global)
-				if (c.getInfectionLevel() > 0.3) {
-					double baseAirChance = 0.015;
-					double airModifier = 1.0 + (internationalTransportLevel * 1.5);
-					double airTravelChance = baseAirChance * (c.getGdpPerCapita() / 50000.0 + 0.1) * airModifier;
+				// Air/Sea Spread (Global) - Threshold lowered to 5%
+				if (c.getInfectionLevel() > 0.05 && !c.isAirBorderBlocked()) {
+					double baseAirChance = 0.04; // Increased from 0.02
+					double airModifier = 1.0 + (internationalTransportLevel * 1.8);
+					double airTravelChance = baseAirChance * (c.getGdpPerCapita() / 50000.0 + 0.15) * airModifier;
 					if (Math.random() < airTravelChance) {
 						Country target = countries.get((int) (Math.random() * countries.size()));
-						if (target.getInfectionLevel() == 0) {
+						if (target.getInfectionLevel() == 0 && !target.isImmune() && !target.isAirBorderBlocked()) {
 							infectionIncreases.put(target, 0.01);
 							sendMessageToUser("Virus reached " + target.getName() + " via international flight!");
 						}
@@ -107,7 +156,9 @@ public class StudentCode extends Server {
 				}
 			}
 
-			currentInfected += (long) (c.getPopulation() * c.getInfectionLevel());
+			long living = Math.max(0, c.getPopulation() - c.getDeaths());
+			// "Infected" now represents Total Cases (Living Infected + Total Deaths)
+			currentInfected += (long) (living * c.getInfectionLevel()) + c.getDeaths();
 			currentDeaths += c.getDeaths();
 		}
 
@@ -122,14 +173,13 @@ public class StudentCode extends Server {
 		this.totalGlobalInfected = currentInfected;
 		this.totalGlobalDeaths = currentDeaths;
 		this.infectedCountryCount = currentInfectedCount;
+		this.globalCureProgress = totalDrugProgress / countries.size();
 
-		// Update DNA Points (10x harder)
-		// 1,000,000 infected = 1 DNA
-		// 200,000 killed = 1 DNA (effectively 1,000,000 killed = 5 DNA)
+		// Update DNA Points
 		long pointsFromInfected = totalGlobalInfected / 1000000;
 		long pointsFromDeaths = totalGlobalDeaths / 200000;
 		long newTotalPoints = pointsFromInfected + pointsFromDeaths;
-		
+
 		if (newTotalPoints > totalPointsEarned) {
 			dnaPoints += (newTotalPoints - totalPointsEarned);
 			totalPointsEarned = newTotalPoints;
@@ -150,24 +200,28 @@ public class StudentCode extends Server {
 		status.put("stats_countries", String.valueOf(infectedCountryCount));
 		status.put("stats_days", String.valueOf(dayCount));
 		status.put("stats_dna", String.valueOf(dnaPoints));
-		
+
 		status.put("lvl_lethality", String.valueOf(lethalityLevel));
 		status.put("lvl_land", String.valueOf(landTransportLevel));
 		status.put("lvl_international", String.valueOf(internationalTransportLevel));
 		status.put("lvl_infectivity", String.valueOf(infectivityLevel));
 		status.put("lvl_resistance", String.valueOf(resistanceLevel));
-		
+
 		status.put("cost_lethality", String.valueOf(getUpgradeCost(lethalityLevel)));
 		status.put("cost_land", String.valueOf(getUpgradeCost(landTransportLevel)));
 		status.put("cost_international", String.valueOf(getUpgradeCost(internationalTransportLevel)));
 		status.put("cost_infectivity", String.valueOf(getUpgradeCost(infectivityLevel)));
 		status.put("cost_resistance", String.valueOf(getUpgradeCost(resistanceLevel)));
 
+		status.put("global_cure", String.format("%.1f%%", globalCureProgress * 100));
+		status.put("game_state", gameState);
+
 		return status;
 	}
 
 	private int getUpgradeCost(int currentLevel) {
-		if (currentLevel >= maxLevel) return -1;
+		if (currentLevel >= maxLevel)
+			return -1;
 		// Exponential cost: 10, 18, 32, 58, 105, 189...
 		return (int) (10 * Math.pow(1.8, currentLevel));
 	}
@@ -184,10 +238,12 @@ public class StudentCode extends Server {
 	}
 
 	@Override
-	public void getInputCountries(String country1, String country2) {}
+	public void getInputCountries(String country1, String country2) {
+	}
 
 	@Override
-	public void getColorPath() {}
+	public void getColorPath() {
+	}
 
 	@Override
 	public void handleClick(String country) {
@@ -205,7 +261,8 @@ public class StudentCode extends Server {
 		int cost;
 		switch (type.toLowerCase()) {
 			case "lethality":
-				if (lethalityLevel >= maxLevel) return;
+				if (lethalityLevel >= maxLevel)
+					return;
 				cost = getUpgradeCost(lethalityLevel);
 				if (dnaPoints >= cost) {
 					dnaPoints -= cost;
@@ -214,7 +271,8 @@ public class StudentCode extends Server {
 				}
 				break;
 			case "land":
-				if (landTransportLevel >= maxLevel) return;
+				if (landTransportLevel >= maxLevel)
+					return;
 				cost = getUpgradeCost(landTransportLevel);
 				if (dnaPoints >= cost) {
 					dnaPoints -= cost;
@@ -223,7 +281,8 @@ public class StudentCode extends Server {
 				}
 				break;
 			case "international":
-				if (internationalTransportLevel >= maxLevel) return;
+				if (internationalTransportLevel >= maxLevel)
+					return;
 				cost = getUpgradeCost(internationalTransportLevel);
 				if (dnaPoints >= cost) {
 					dnaPoints -= cost;
@@ -232,7 +291,8 @@ public class StudentCode extends Server {
 				}
 				break;
 			case "infectivity":
-				if (infectivityLevel >= maxLevel) return;
+				if (infectivityLevel >= maxLevel)
+					return;
 				cost = getUpgradeCost(infectivityLevel);
 				if (dnaPoints >= cost) {
 					dnaPoints -= cost;
@@ -241,7 +301,8 @@ public class StudentCode extends Server {
 				}
 				break;
 			case "resistance":
-				if (resistanceLevel >= maxLevel) return;
+				if (resistanceLevel >= maxLevel)
+					return;
 				cost = getUpgradeCost(resistanceLevel);
 				if (dnaPoints >= cost) {
 					dnaPoints -= cost;

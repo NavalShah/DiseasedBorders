@@ -259,9 +259,23 @@
                 if (hashmap.stats_deaths) document.getElementById("total-deaths").textContent = hashmap.stats_deaths;
                 if (hashmap.stats_countries) document.getElementById("countries-affected").textContent = hashmap.stats_countries;
                 if (hashmap.stats_days) document.getElementById("total-days").textContent = hashmap.stats_days;
+                if (hashmap.global_cure) document.getElementById("global-cure").textContent = hashmap.global_cure;
                 
                 const dna = parseInt(hashmap.stats_dna || "0");
                 if (hashmap.stats_dna) document.getElementById("dna-points").textContent = hashmap.stats_dna;
+
+                // Handle Game State
+                if (hashmap.game_state === "WON") {
+                    const ticker = document.getElementById("news-ticker");
+                    ticker.textContent = "VICTORY: HUMANITY HAS BEEN ERADICATED!";
+                    ticker.style.display = "block";
+                    ticker.style.backgroundColor = "rgba(0, 255, 0, 0.8)";
+                } else if (hashmap.game_state === "LOST") {
+                    const ticker = document.getElementById("news-ticker");
+                    ticker.textContent = "DEFEAT: THE VIRUS HAS BEEN WIPED OUT!";
+                    ticker.style.display = "block";
+                    ticker.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+                }
 
                 // Update Upgrades UI
                 const upgradeTypes = ['infectivity', 'lethality', 'land', 'international', 'resistance'];
@@ -438,6 +452,10 @@
     <div class="stat-item">
         <span class="stat-label">Countries Affected</span>
         <span id="countries-affected" class="stat-value">0</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">Global Cure</span>
+        <span id="global-cure" class="stat-value" style="color: #44ff44;">0%</span>
     </div>
 </div>
 

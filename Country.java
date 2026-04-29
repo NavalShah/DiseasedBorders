@@ -5,11 +5,29 @@ public class Country {
     private double gdp;
     private double infectionLevel = 0.0;
     private long deaths = 0;
+    private boolean landBorderBlocked = false;
+    private boolean airBorderBlocked = false;
+    private double drugProgress = 0.0;
+    private boolean isImmune = false;
 
     public Country(String code, String name) {
         this.code = code;
         this.name = name.trim();
     }
+
+    public boolean isLandBorderBlocked() { return landBorderBlocked; }
+    public void setLandBorderBlocked(boolean blocked) { this.landBorderBlocked = blocked; }
+
+    public boolean isAirBorderBlocked() { return airBorderBlocked; }
+    public void setAirBorderBlocked(boolean blocked) { this.airBorderBlocked = blocked; }
+
+    public double getDrugProgress() { return drugProgress; }
+    public void setDrugProgress(double progress) { 
+        this.drugProgress = Math.max(0.0, Math.min(1.0, progress)); 
+    }
+
+    public boolean isImmune() { return isImmune; }
+    public void setImmune(boolean immune) { this.isImmune = immune; }
 
     public long getDeaths() { return deaths; }
     public void setDeaths(long deaths) { this.deaths = deaths; }
