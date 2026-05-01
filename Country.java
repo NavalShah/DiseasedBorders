@@ -1,14 +1,14 @@
 public class Country {
     private String code;
     private String name;
-    private long population;
-    private double gdp;
-    private double infectionLevel = 0.0;
-    private long deaths = 0;
-    private boolean landBorderBlocked = false;
-    private boolean airBorderBlocked = false;
-    private double drugProgress = 0.0;
-    private boolean isImmune = false;
+    private volatile long population;
+    private volatile double gdp;
+    private volatile double infectionLevel = 0.0;
+    private volatile long deaths = 0;
+    private volatile boolean landBorderBlocked = false;
+    private volatile boolean airBorderBlocked = false;
+    private volatile double drugProgress = 0.0;
+    private volatile boolean isImmune = false;
 
     public Country(String code, String name) {
         this.code = code;

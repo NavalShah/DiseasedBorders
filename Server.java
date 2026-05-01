@@ -48,9 +48,7 @@ public abstract class Server {
         } catch (IOException e) {
             throw new RuntimeException("Failed to start HTTP server on port " + port, e);
         }
-        countryColors = new HashMap<String, String>();
-        // countryColors.put("distance","0");
-
+        countryColors = Collections.synchronizedMap(new HashMap<>());
     }
 
     public Server() {
@@ -247,14 +245,13 @@ public abstract class Server {
                 String jSONClickedMap = mapToJSON(countryColors);
                 System.out.println("ClickedMap: " + countryColors);
 
-                // System.out.println("jSONClickedMap -->"+jSONClickedMap);
                 // Respond with the same country received (or modify as needed)
-                byte[] responseBytes = jSONClickedMap.toString().getBytes(StandardCharsets.UTF_8);
+                byte[] responseBytes = jSONClickedMap.getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(200, responseBytes.length);
 
                 try (OutputStream os = exchange.getResponseBody()) {
                     os.write(responseBytes);
-                } // Auto-closes OutputStream
+                }
 
             } else {
                 exchange.sendResponseHeaders(405, 0); // Method Not Allowed
@@ -284,10 +281,6 @@ public abstract class Server {
                 System.out.println("country2: " + country2);
                 getInputCountries(country1, country2);
 
-                // This is a KEY example on how you can give a hashmap of countries+color to the
-                // frontend to display!
-                // Map<String, String> countryColors = getInputCountries(country1,country2);
-                // countryColors.putAll(getInputCountries(country1,country2));
                 System.out.println("Map to Post ==>" + countryColors);
 
                 // Convert HashMap to JSON string
@@ -300,7 +293,7 @@ public abstract class Server {
 
                 try (OutputStream os = exchange.getResponseBody()) {
                     os.write(responseBytes);
-                } // Auto-closes OutputStream
+                }
 
             } else {
                 exchange.sendResponseHeaders(405, 0); // Method Not Allowed
@@ -326,7 +319,7 @@ public abstract class Server {
         }
     }
 
-    // Convert HashMap to JSON string (made with claude 3.7)
+    // Convert HashMap to JSON string
     private String mapToJSON(Map<String, String> map) {
         StringBuilder json = new StringBuilder("{");
         boolean first = true;
@@ -335,8 +328,10 @@ public abstract class Server {
             if (!first) {
                 json.append(",");
             }
-            json.append("\"").append(entry.getKey()).append("\":\"")
-                    .append(entry.getValue()).append("\"");
+            String key = escapeJSON(entry.getKey());
+            String value = escapeJSON(entry.getValue());
+            json.append("\"").append(key).append("\":\"")
+                    .append(value).append("\"");
             first = false;
         }
 
@@ -344,16 +339,25 @@ public abstract class Server {
         return json.toString();
     }
 
-    // Simple JSON parser without libraries (made with claude 3.7)
+    private String escapeJSON(String str) {
+        if (str == null) return "";
+        return str.replace("\\", "\\\\")
+                  .replace("\"", "\\\"")
+                  .replace("\b", "\\b")
+                  .replace("\f", "\\f")
+                  .replace("\n", "\\n")
+                  .replace("\r", "\\r")
+                  .replace("\t", "\\t");
+    }
+
+    // Simple JSON parser without libraries
     private HashMap<String, String> parseJSON(String jsonStr) {
         HashMap<String, String> result = new HashMap<>();
-        // Remove curly braces and parse key-value pairs
         jsonStr = jsonStr.trim();
         if (jsonStr.startsWith("{") && jsonStr.endsWith("}")) {
             jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
         }
 
-        // Split by commas not inside quotes
         String[] pairs = jsonStr.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
 
         for (String pair : pairs) {
@@ -362,7 +366,6 @@ public abstract class Server {
                 String key = keyValue[0].trim();
                 String value = keyValue[1].trim();
 
-                // Remove quotes from key and value if present
                 if (key.startsWith("\"") && key.endsWith("\"")) {
                     key = key.substring(1, key.length() - 1);
                 }
@@ -377,18 +380,16 @@ public abstract class Server {
     }
 
     public static ArrayList<String> parseCountryList(String input) {
-        // Remove square brackets and quotes
         input = input.trim();
         if (input.startsWith("[") && input.endsWith("]")) {
-            input = input.substring(1, input.length() - 1); // remove [ and ]
+            input = input.substring(1, input.length() - 1);
         }
 
-        // Split by comma, strip extra quotes and whitespace
         String[] items = input.split(",");
         ArrayList<String> result = new ArrayList<>();
 
         for (String item : items) {
-            result.add(item.trim().replaceAll("^\"|\"$", "")); // remove surrounding quotes
+            result.add(item.trim().replaceAll("^\"|\"$", ""));
         }
 
         return result;

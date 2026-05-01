@@ -5,8 +5,9 @@ public class StudentCode extends Server {
 
 	private CountryGraph graph = new CountryGraph();
 	private Map<String, Country> countryMap = new HashMap<>();
-	private boolean simulationStarted = false;
+	private volatile boolean simulationStarted = false;
 	private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+	
 	private long totalGlobalInfected = 0;
 	private long totalGlobalDeaths = 0;
 	private int infectedCountryCount = 0;
@@ -17,11 +18,11 @@ public class StudentCode extends Server {
 	private int internationalTransportLevel = 0;
 	private int infectivityLevel = 0;
 	private int resistanceLevel = 0;
-	private int maxLevel = 10;
+	private final int maxLevel = 10;
 
 	private long dnaPoints = 0;
 	private long totalPointsEarned = 0;
-	private String gameState = "PLAYING"; // PLAYING, WON, LOST
+	private volatile String gameState = "PLAYING"; // PLAYING, WON, LOST
 	private double globalCureProgress = 0.0;
 
 	public StudentCode() {
@@ -39,7 +40,7 @@ public class StudentCode extends Server {
 		scheduler.scheduleAtFixedRate(this::simulationTick, 1, 1, TimeUnit.SECONDS);
 	}
 
-	private void simulationTick() {
+	private synchronized void simulationTick() {
 		if (!simulationStarted || !gameState.equals("PLAYING"))
 			return;
 
@@ -176,8 +177,8 @@ public class StudentCode extends Server {
 		this.globalCureProgress = totalDrugProgress / countries.size();
 
 		// Update DNA Points
-		long pointsFromInfected = totalGlobalInfected / 1000000;
-		long pointsFromDeaths = totalGlobalDeaths / 200000;
+		long pointsFromInfected = currentInfected / 1000000;
+		long pointsFromDeaths = currentDeaths / 200000;
 		long newTotalPoints = pointsFromInfected + pointsFromDeaths;
 
 		if (newTotalPoints > totalPointsEarned) {
@@ -187,7 +188,7 @@ public class StudentCode extends Server {
 	}
 
 	@Override
-	public Map<String, String> getStatus() {
+	public synchronized Map<String, String> getStatus() {
 		Map<String, String> status = new HashMap<>();
 		for (Country c : graph.getCountrySet()) {
 			if (c.getInfectionLevel() > 0) {
@@ -256,7 +257,7 @@ public class StudentCode extends Server {
 	}
 
 	@Override
-	public void handleUpgrade(String type) {
+	public synchronized void handleUpgrade(String type) {
 		System.out.println("LOG: handleUpgrade requested [" + type + "]");
 		int cost;
 		switch (type.toLowerCase()) {

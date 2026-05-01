@@ -106,35 +106,4 @@ public class GraphLoader {
 			e.printStackTrace();
 		}
 	}
-
-	public static void main(String[] args) {
-		CountryGraph graph = GraphLoader.loadGraph("CountryBorders.CSV");
-		loadPopulation(graph, "CountryPopulation_Fixed.csv");
-		loadGDP(graph, "GDP_Cleaned_Latest.csv");
-
-		System.out.println("Countries: " + graph.getCountrySet().size());
-
-		for (Country c : graph.getCountrySet()) {
-
-			System.out.println(c.getName() + " - Pop: " + c.getPopulation() + " - GDP: " + c.getGdp() + " - Per Capita: " + c.getGdpPerCapita());
-			/*
-			 * if (c.getName().equals("Germany")) {
-			 * System.out.println("Neighbors of Germany: " + graph.getNeighbors(c));
-			 * }
-			 */
-		}
-
-		System.out.println("\nBorders: " + graph.getBorderSet().size());
-
-		for (String s : graph.getBorderSet()) {
-
-			System.out.print(s + "-");
-			/*
-			 * if (c.getName().equals("Germany")) {
-			 * System.out.println("Neighbors of Germany: " + graph.getNeighbors(c));
-			 * }
-			 */
-		}
-
-	}
 }
