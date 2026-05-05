@@ -1,7 +1,3 @@
-
-// Version 0.4
-// Added methods clearCountryColors (to clear color map) and
-// printCountryColors to print current map (to call for debug purposes)
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -21,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 
 public abstract class Server {
     private HttpServer server;
-    private int port; // Port on which the server will listen
+    private int port; 
     private Map<String, String> countryColors;
 
     private final List<String> messageQueue = Collections.synchronizedList(new ArrayList<>());
@@ -57,11 +53,6 @@ public abstract class Server {
 
     public abstract void getInputCountries(String country1, String country2);
 
-    /*
-     * This should return a all countries in the shortest path between country1 and
-     * country2
-     * (as set to the Subclass) with each path having its colors
-     */
     public abstract void getColorPath();
 
     public abstract void handleClick(String country);
@@ -156,7 +147,7 @@ public abstract class Server {
         public void handle(HttpExchange exchange) throws IOException {
 
             if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-                exchange.sendResponseHeaders(405, -1); // Method Not Allowed
+                exchange.sendResponseHeaders(405, -1);
                 return;
             }
 
@@ -340,14 +331,15 @@ public abstract class Server {
     }
 
     private String escapeJSON(String str) {
-        if (str == null) return "";
+        if (str == null)
+            return "";
         return str.replace("\\", "\\\\")
-                  .replace("\"", "\\\"")
-                  .replace("\b", "\\b")
-                  .replace("\f", "\\f")
-                  .replace("\n", "\\n")
-                  .replace("\r", "\\r")
-                  .replace("\t", "\\t");
+                .replace("\"", "\\\"")
+                .replace("\b", "\\b")
+                .replace("\f", "\\f")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     // Simple JSON parser without libraries

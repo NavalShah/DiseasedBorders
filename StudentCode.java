@@ -22,7 +22,7 @@ public class StudentCode extends Server {
 
 	private long dnaPoints = 0;
 	private long totalPointsEarned = 0;
-	private volatile String gameState = "PLAYING"; // PLAYING, WON, LOST
+	private volatile String gameState = "PLAYING"; // PLAYING, WON, LOST (jus gamestates)
 	private double globalCureProgress = 0.0;
 
 	public StudentCode() {
@@ -36,7 +36,6 @@ public class StudentCode extends Server {
 			countryMap.put(c.getName().toLowerCase(), c);
 		}
 
-		// Start simulation tick
 		scheduler.scheduleAtFixedRate(this::simulationTick, 1, 1, TimeUnit.SECONDS);
 	}
 
@@ -55,7 +54,6 @@ public class StudentCode extends Server {
 		int currentInfectedCount = 0;
 		double totalDrugProgress = 0;
 
-		// 1. Check Win/Loss
 		if (infectedCountryCount == countries.size() && totalGlobalInfected > 0) {
 			gameState = "WON";
 			sendMessageToUser("VICTORY: The virus has spread to every corner of the earth!");
@@ -68,9 +66,9 @@ public class StudentCode extends Server {
 			return;
 		}
 
+		//country blocking borders etc 
 		for (Country c : countries) {
-			// --- Country Defenses & Intelligence ---
-			// Block borders if infection is high
+
 			if (c.getInfectionLevel() > 0.15 && !c.isLandBorderBlocked()) {
 				c.setLandBorderBlocked(true);
 				sendMessageToUser(c.getName() + " has closed its land borders!");
@@ -80,7 +78,6 @@ public class StudentCode extends Server {
 				sendMessageToUser(c.getName() + " has suspended all international flights!");
 			}
 
-			// Drug Research (Starts if infected or global threat is high)
 			boolean globalThreat = (infectedCountryCount > countries.size() * 0.2);
 			if ((c.getInfectionLevel() > 0.05 || globalThreat) && !c.isImmune()) {
 				double wealthFactor = Math.log10(c.getGdpPerCapita() + 1) / 6.0;
@@ -91,7 +88,6 @@ public class StudentCode extends Server {
 			}
 			totalDrugProgress += c.getDrugProgress();
 
-			// Apply Cure/Immunity
 			if (c.getDrugProgress() >= 1.0 && !c.isImmune()) {
 				c.setImmune(true);
 				sendMessageToUser(c.getName() + " has developed a cure and is now immune!");
@@ -102,14 +98,12 @@ public class StudentCode extends Server {
 				
 				long livingPop = Math.max(0, c.getPopulation() - c.getDeaths());
 				
-				// Base growth
 				double populationFactor = Math.log10(c.getPopulation() + 1) / 10.0;
 				double gdpImpact = Math.log10(c.getGdp() / (c.getPopulation() + 1) + 1) / 5.0;
 				double resistanceModifier = Math.max(0.1, 1.0 - (resistanceLevel * 0.08));
 				double gdpFactor = gdpImpact * resistanceModifier;
 				double baseGrowth = 0.05 + (infectivityLevel * 0.02);
 				double growth = baseGrowth * populationFactor * (1.0 - gdpFactor);
-				
 				// Cure impact: Drug progress actively reduces infection
 				double cureImpact = c.getDrugProgress() * 0.2; 
 				double totalChange = growth - cureImpact;

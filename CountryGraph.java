@@ -20,7 +20,6 @@ public class CountryGraph {
         adjList.get(b).add(a);
     }
 
-
     public Set<Country> getCountrySet() {
         return adjList.keySet();
     }
@@ -49,12 +48,11 @@ public class CountryGraph {
         return adjList.getOrDefault(a, new HashSet<>());
     }
 
-
-
     public boolean isConnected(Country a, Country b) {
         return getDistance(a, b) != -1;
     }
 
+    // findpath alg in case useful or need to reference back to it
     public List<Country> findPath(Country start, Country end) {
         if (!adjList.containsKey(start) || !adjList.containsKey(end)) {
             return new ArrayList<>();
@@ -70,7 +68,8 @@ public class CountryGraph {
         while (!queue.isEmpty()) {
             Country current = queue.poll();
 
-            if (current.equals(end)) break;
+            if (current.equals(end))
+                break;
 
             for (Country neighbor : adjList.get(current)) {
                 if (!visited.contains(neighbor)) {
@@ -128,7 +127,8 @@ public class CountryGraph {
     public Set<Country> getWithinRadius(Country start, int radius) {
         Set<Country> result = new HashSet<>();
 
-        if (!adjList.containsKey(start)) return result;
+        if (!adjList.containsKey(start))
+            return result;
 
         Queue<Country> queue = new LinkedList<>();
         Map<Country, Integer> distance = new HashMap<>();
@@ -140,7 +140,8 @@ public class CountryGraph {
             Country current = queue.poll();
             int dist = distance.get(current);
 
-            if (dist > radius) continue;
+            if (dist > radius)
+                continue;
 
             result.add(current);
 

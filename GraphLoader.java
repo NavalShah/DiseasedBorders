@@ -5,11 +5,10 @@ public class GraphLoader {
 
 	public static CountryGraph loadGraph(String filename) {
 		CountryGraph graph = new CountryGraph();
-		// Keyed by Name instead of Code
 		Map<String, Country> nameMap = new HashMap<>();
 
 		try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
-			br.readLine(); // skip header
+			br.readLine();
 			String line;
 			while ((line = br.readLine()) != null) {
 				String[] parts = line.split(",", -1);
@@ -21,7 +20,6 @@ public class GraphLoader {
 				String codeB = parts[2].trim();
 				String nameB = parts[3].trim();
 
-				// Use nameA as the key
 				nameMap.putIfAbsent(nameA, new Country(codeA, nameA));
 				Country a = nameMap.get(nameA);
 				graph.addCountry(a);
@@ -29,7 +27,6 @@ public class GraphLoader {
 				if (codeB.isEmpty())
 					continue;
 
-				// Use nameB as the key
 				nameMap.putIfAbsent(nameB, new Country(codeB, nameB));
 				Country b = nameMap.get(nameB);
 				graph.addBorder(a, b);
@@ -47,11 +44,10 @@ public class GraphLoader {
 		}
 
 		try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
-			br.readLine(); // skip header
+			br.readLine(); 
 			String line;
 			while ((line = br.readLine()) != null) {
 				try {
-					// Use regex that respects quotes for commas
 					String[] parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
 					if (parts.length < 2)
 						continue;
@@ -64,7 +60,6 @@ public class GraphLoader {
 						lookup.get(name.toLowerCase()).setPopulation(pop);
 					}
 				} catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
-					// Skip malformed lines
 				}
 			}
 		} catch (IOException e) {
@@ -79,11 +74,10 @@ public class GraphLoader {
 		}
 
 		try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
-			br.readLine(); // skip header
+			br.readLine(); 
 			String line;
 			while ((line = br.readLine()) != null) {
 				try {
-					// Use regex that respects quotes for commas
 					String[] parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
 					if (parts.length < 3)
 						continue;
@@ -99,7 +93,6 @@ public class GraphLoader {
 						lookup.get(name.toLowerCase()).setGdp(gdp);
 					}
 				} catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
-					// Skip malformed lines
 				}
 			}
 		} catch (IOException e) {
